@@ -1,35 +1,13 @@
-#include <QCoreApplication>
-#include <QDebug>
-#include <QHostAddress>
-#include <QTcpServer>
-#include <QTcpSocket>
+#include <QApplication>
+
+#include "mainwindow.h"
 
 int main(int argc, char* argv[]) {
-    QCoreApplication app(argc, argv);
+    QApplication app(argc, argv);
 
-    QTcpServer server;
-
-    QObject::connect(&server, &QTcpServer::newConnection, [&server]() {
-        QTcpSocket* socket = server.nextPendingConnection();
-
-        qDebug() << "Client connected:" << socket->peerAddress().toString()
-                 << ":" << socket->peerPort();
-
-        QObject::connect(socket, &QTcpSocket::readyRead, socket, [socket]() {
-            const QByteArray data = socket->readAll();
-            qDebug() << "Received data from client:" << data;
-        });
-
-        QObject::connect(socket, &QTcpSocket::disconnected, socket,
-                         &QTcpSocket::deleteLater);
-    });
-
-    if (!server.listen(QHostAddress::AnyIPv4, 5000)) {
-        qCritical() << "Server start error:" << server.errorString();
-        return 1;
-    }
-
-    qDebug() << "Server started on port" << server.serverPort();
+    MainWindow window;
+    window.setWindowTitle("Screenshot Streaming Server");
+    window.show();
 
     return app.exec();
 }

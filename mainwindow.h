@@ -3,6 +3,9 @@
 
 #include <QMainWindow>
 
+class QTcpServer;
+class QTcpSocket;
+
 QT_BEGIN_NAMESPACE
 namespace Ui {
 class MainWindow;
@@ -17,7 +20,14 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
 
+private slots:
+    void handleNewConnection();
+    void handleReadyRead();
+
 private:
     Ui::MainWindow *ui;
+    QTcpServer *server;
+    QTcpSocket *clientSocket;
 };
-#endif // MAINWINDOW_H
+
+#endif

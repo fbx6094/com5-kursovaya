@@ -29,12 +29,17 @@ target_include_directories(untitled
 
 qt_add_executable(untitled_server
     server/main.cpp
+    mainwindow.cpp
+    mainwindow.h
+    mainwindow.ui
     common/protocol.h
 )
 
 target_link_libraries(untitled_server
     PRIVATE
         Qt::Core
+        Qt::Gui
+        Qt::Widgets
         Qt::Network
 )
 
