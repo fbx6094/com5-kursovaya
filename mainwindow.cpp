@@ -4,7 +4,8 @@
 #include <QPixmap>
 #include <QTcpServer>
 #include <QTcpSocket>
-
+#include <QVBoxLayout>
+#include <QSizePolicy>
 #include "ui_mainwindow.h"
 
 MainWindow::MainWindow(QWidget* parent)
@@ -14,9 +15,19 @@ MainWindow::MainWindow(QWidget* parent)
       clientSocket(nullptr) {
     ui->setupUi(this);
 
+    ui->frameLabel->setMinimumSize(0,0);
+    ui->frameLabel->setSizePolicy(
+        QSizePolicy::Ignored,
+        QSizePolicy::Ignored
+    );
+
     ui->frameLabel->setText("Ожидание подключения...");
     ui->frameLabel->setAlignment(Qt::AlignCenter);
     ui->frameLabel->setScaledContents(false);
+
+    auto* layout = new QVBoxLayout(ui->centralwidget);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(ui->frameLabel);
 
     connect(server, &QTcpServer::newConnection, this,
             &MainWindow::handleNewConnection);
@@ -31,6 +42,21 @@ MainWindow::MainWindow(QWidget* parent)
 }
 
 MainWindow::~MainWindow() { delete ui; }
+
+void MainWindow::resizeEvent(QResizeEvent* event)
+{
+    QMainWindow::resizeEvent(event);
+
+    if (!currentPixmap.isNull()) {
+        ui->frameLabel->setPixmap(
+            currentPixmap.scaled(
+                ui->frameLabel->size(),
+                Qt::KeepAspectRatio,
+                Qt::SmoothTransformation
+            )
+        );
+    }
+}
 
 void MainWindow::handleNewConnection() {
     if (clientSocket != nullptr) {
@@ -78,10 +104,12 @@ void MainWindow::handleReadyRead(){
     receiveBuffer.remove(0, headerSize + imageSize);
 
     QPixmap pixmap;
-    if (!pixmap.loadFromData(imageData, "PNG")) {
-        statusBar()->showMessage("Ошибка: не удалось загрузить PNG");
+    if (!pixmap.loadFromData(imageData, "JPEG")) {
+        statusBar()->showMessage("Ошибка: не удалось загрузить JPEG");
         return;
     }
+
+    currentPixmap = pixmap;
 
     ui->frameLabel->setPixmap(
         pixmap.scaled(

@@ -17,10 +17,10 @@
    <widget class="QLabel" name="frameLabel">
     <property name="geometry">
      <rect>
-      <x>240</x>
-      <y>150</y>
-      <width>301</width>
-      <height>261</height>
+      <x>10</x>
+      <y>0</y>
+      <width>771</width>
+      <height>541</height>
      </rect>
     </property>
     <property name="sizePolicy">

@@ -2,8 +2,9 @@
 #include <QDebug>
 #include <QGuiApplication>
 #include <QImage>
-#include <QPainter>
 #include <QTcpSocket>
+#include <QScreen>
+#include <QPixmap>
 
 int main(int argc, char* argv[]) {
     QGuiApplication app(argc, argv);
@@ -16,18 +17,20 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    QImage image(640, 480, QImage::Format_RGB32);
-    image.fill(Qt::darkBlue);
+    QScreen *screen = QGuiApplication::primaryScreen();
+    if (screen == nullptr){
+        qCritical() <<"Screen not found";
+        return 1;
+    }
 
-    QPainter painter(&image);
-    painter.setPen(Qt::white);
-    painter.drawText(image.rect(), Qt::AlignCenter, "Test frame text");
-    painter.end();
+    const QPixmap screenshot = screen->grabWindow(0);
+    const QImage image = screenshot.toImage();
+
 
     QByteArray imageData;
     QBuffer buffer(&imageData);
     buffer.open(QIODevice::WriteOnly);
-    image.save(&buffer, "PNG");
+    image.save(&buffer, "JPEG",80);
 
     const quint32 size = imageData.size();
 

@@ -1,6 +1,7 @@
 #pragma once
-#include <QMainWindow>
 #include <QByteArray>
+#include <QMainWindow>
+#include <QPixmap>
 
 class QTcpServer;
 class QTcpSocket;
@@ -22,9 +23,13 @@ class MainWindow : public QMainWindow {
     void handleNewConnection();
     void handleReadyRead();
 
+   protected:
+    void resizeEvent(QResizeEvent* event) override;
+
    private:
     Ui::MainWindow* ui;
     QTcpServer* server;
+    QPixmap currentPixmap;
     QTcpSocket* clientSocket;
     QByteArray receiveBuffer;
 };
