@@ -1,7 +1,6 @@
-#ifndef MAINWINDOW_H
-#define MAINWINDOW_H
-
+#pragma once
 #include <QMainWindow>
+#include <QByteArray>
 
 class QTcpServer;
 class QTcpSocket;
@@ -12,22 +11,20 @@ class MainWindow;
 }
 QT_END_NAMESPACE
 
-class MainWindow : public QMainWindow
-{
+class MainWindow : public QMainWindow {
     Q_OBJECT
 
-public:
-    explicit MainWindow(QWidget *parent = nullptr);
+   public:
+    explicit MainWindow(QWidget* parent = nullptr);
     ~MainWindow() override;
 
-private slots:
+   private slots:
     void handleNewConnection();
     void handleReadyRead();
 
-private:
-    Ui::MainWindow *ui;
-    QTcpServer *server;
-    QTcpSocket *clientSocket;
+   private:
+    Ui::MainWindow* ui;
+    QTcpServer* server;
+    QTcpSocket* clientSocket;
+    QByteArray receiveBuffer;
 };
-
-#endif
