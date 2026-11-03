@@ -6,26 +6,6 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Network)
 
 qt_standard_project_setup()
 
-qt_add_executable(untitled
-    WIN32 MACOSX_BUNDLE
-    main.cpp
-    mainwindow.cpp
-    mainwindow.h
-    mainwindow.ui
-    common/protocol.h
-)
-
-target_link_libraries(untitled
-    PRIVATE
-        Qt::Core
-        Qt::Widgets
-        Qt::Network
-)
-
-target_include_directories(untitled
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}
-)
 
 qt_add_executable(untitled_server
     server/main.cpp
