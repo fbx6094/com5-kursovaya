@@ -30,6 +30,8 @@ target_include_directories(untitled_server
 
 qt_add_executable(untitled_client
     client/main.cpp
+    client/clientwindow.cpp
+    client/clientwindow.h
 )
 
 target_link_libraries(untitled_client
@@ -37,4 +39,5 @@ target_link_libraries(untitled_client
         Qt::Core
         Qt::Gui
         Qt::Network
+        Qt::Widgets
 )
