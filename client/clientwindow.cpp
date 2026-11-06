@@ -134,6 +134,10 @@ void ClientWindow::sendFrame(){
         return;
     }
 
+    if (socket->bytesToWrite() > 0) {
+        return;
+    }
+
     QScreen* screen = QGuiApplication::primaryScreen();
 
     if (screen == nullptr){
@@ -147,7 +151,7 @@ void ClientWindow::sendFrame(){
     QByteArray imagedata;
     QBuffer buffer(&imagedata);
 
-    if (!buffer.open(QIODevice::WriteOnly) || !image.save(&buffer, "JPEG", 60)){
+    if (!buffer.open(QIODevice::WriteOnly) || !image.save(&buffer, "JPEG", 80)){
         statusLabel->setText("Ошибка при сохранении изображения");
         stopStreaming();
         return;
