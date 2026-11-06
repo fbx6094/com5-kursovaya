@@ -9,6 +9,9 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QBuffer>
+#include <QImage>
+#include <QScreen>
 
 ClientWindow::ClientWindow(QWidget* parent)
     : QMainWindow(parent),
@@ -126,5 +129,41 @@ void ClientWindow::stopStreaming() {
 }
 
 void ClientWindow::sendFrame(){
+    if (socket->state() != QAbstractSocket::ConnectedState){
+        stopStreaming();
+        return;
+    }
+
+    QScreen* screen = QGuiApplication::primaryScreen();
+
+    if (screen == nullptr){
+        statusLabel->setText("Экран не найден");
+        stopStreaming();
+        return;
+    }
+
+    const QImage image = screen->grabWindow(0).toImage();   
+
+    QByteArray imagedata;
+    QBuffer buffer(&imagedata);
+
+    if (!buffer.open(QIODevice::WriteOnly) || !image.save(&buffer, "JPEG", 60)){
+        statusLabel->setText("Ошибка при сохранении изображения");
+        stopStreaming();
+        return;
+    }
+
+    const quint32 imageSize = imagedata.size();
+    QByteArray pkg;
+    pkg.append(
+        reinterpret_cast<const char*>(&imageSize),
+        sizeof(imageSize)
+    );
+    pkg.append(imagedata);
+    
+    if (socket->write(pkg) == -1){
+        statusLabel->setText("Ошибка при отправке изображения" + socket->errorString());
+        stopStreaming();
+    }
 
 }

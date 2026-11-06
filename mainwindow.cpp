@@ -73,6 +73,7 @@ void MainWindow::handleNewConnection() {
         clientSocket->deleteLater();
         clientSocket = nullptr;
         statusBar()->showMessage("Клиент отключён");
+        ui->frameLabel->setText("Ожидание подключения...");
     });
 
     statusBar()->showMessage("Клиент подключён: " +
