@@ -1,17 +1,17 @@
 #include "clientwindow.h"
 
+#include <QBuffer>
 #include <QFormLayout>
+#include <QImage>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QScreen>
 #include <QSpinBox>
 #include <QTcpSocket>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
-#include <QBuffer>
-#include <QImage>
-#include <QScreen>
 
 ClientWindow::ClientWindow(QWidget* parent)
     : QMainWindow(parent),
@@ -50,6 +50,7 @@ ClientWindow::ClientWindow(QWidget* parent)
     stopButton->setEnabled(false);
 
     timer->setInterval(17);
+    fpstimer.start();
 
     connect(connectButton, &QPushButton::clicked, this,
             &ClientWindow::connectToServer);
@@ -128,46 +129,77 @@ void ClientWindow::stopStreaming() {
     statusLabel->setText("Стрим остановлен");
 }
 
-void ClientWindow::sendFrame(){
-    if (socket->state() != QAbstractSocket::ConnectedState){
+void ClientWindow::sendFrame() {
+    QElapsedTimer frametimer;
+    frametimer.start();
+    if (socket->state() != QAbstractSocket::ConnectedState) {
         stopStreaming();
         return;
     }
 
-    if (socket->bytesToWrite() > 0) {
+    // Один кадр сейчас обычно занимает около 160 КБ.
+    // Не даём TCP-очереди накапливать больше примерно двух кадров.
+    constexpr qint64 maxQueuedBytes = 350000;
+    if (socket->bytesToWrite() > maxQueuedBytes) {
         return;
     }
 
     QScreen* screen = QGuiApplication::primaryScreen();
 
-    if (screen == nullptr){
+    if (screen == nullptr) {
         statusLabel->setText("Экран не найден");
         stopStreaming();
         return;
     }
 
-    const QImage image = screen->grabWindow(0).toImage();   
+    QElapsedTimer stageTimer;
+
+    stageTimer.start();
+    const QImage image = screen->grabWindow(0).toImage();
+    const qint64 captureTime = stageTimer.elapsed();
+
+    stageTimer.restart();
+    const QImage scaledImage =
+        image.scaled(1280, 720, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    const qint64 scaleTime = stageTimer.elapsed();
 
     QByteArray imagedata;
     QBuffer buffer(&imagedata);
 
-    if (!buffer.open(QIODevice::WriteOnly) || !image.save(&buffer, "JPEG", 80)){
-        statusLabel->setText("Ошибка при сохранении изображения");
+    stageTimer.restart();
+    if (!buffer.open(QIODevice::WriteOnly) ||
+        !scaledImage.save(&buffer, "JPEG", 75)) {
+        statusLabel->setText("err saving image");
         stopStreaming();
         return;
     }
+    const qint64 encodeTime = stageTimer.elapsed();
 
     const quint32 imageSize = imagedata.size();
     QByteArray pkg;
-    pkg.append(
-        reinterpret_cast<const char*>(&imageSize),
-        sizeof(imageSize)
-    );
+    pkg.append(reinterpret_cast<const char*>(&imageSize), sizeof(imageSize));
     pkg.append(imagedata);
-    
-    if (socket->write(pkg) == -1){
-        statusLabel->setText("Ошибка при отправке изображения" + socket->errorString());
+    // qDebug() << "capture:" << captureTime << "ms"
+    //          << "scale:" << scaleTime << "ms"
+    //          << "jpeg:" << encodeTime << "ms"
+    //          << "total:" << frametimer.elapsed() << "ms"
+    //          << "size:" << pkg.size() << "bytes";
+    if (socket->write(pkg) == -1) {
+        statusLabel->setText("err sending image" +
+                             socket->errorString());
         stopStreaming();
+        return;
     }
+    fps++;
 
+    const qint64 elapsed = fpstimer.elapsed();
+    if (elapsed >= 1000) {
+        const double clientFps = fps * 1000.0 / static_cast<double>(elapsed);
+
+        statusLabel->setText(
+            QString("Клиент FPS: %1").arg(clientFps, 0, 'f', 1));
+
+        fps = 0;
+        fpstimer.restart();
+    }
 }

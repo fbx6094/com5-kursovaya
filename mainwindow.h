@@ -2,6 +2,7 @@
 #include <QByteArray>
 #include <QMainWindow>
 #include <QPixmap>
+#include <QElapsedTimer>
 
 class QTcpServer;
 class QTcpSocket;
@@ -29,7 +30,9 @@ class MainWindow : public QMainWindow {
    private:
     Ui::MainWindow* ui;
     QTcpServer* server;
-    QPixmap currentPixmap;
+    QPixmap curpixmap;
     QTcpSocket* clientSocket;
     QByteArray receiveBuffer;
+    QElapsedTimer fpstimer;
+    int fps = 0;
 };

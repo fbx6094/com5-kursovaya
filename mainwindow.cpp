@@ -1,11 +1,13 @@
 #include "mainwindow.h"
-#include <cstring>
+
 #include <QHostAddress>
 #include <QPixmap>
+#include <QSizePolicy>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QVBoxLayout>
-#include <QSizePolicy>
+#include <cstring>
+
 #include "ui_mainwindow.h"
 
 MainWindow::MainWindow(QWidget* parent)
@@ -14,12 +16,12 @@ MainWindow::MainWindow(QWidget* parent)
       server(new QTcpServer(this)),
       clientSocket(nullptr) {
     ui->setupUi(this);
+    ui->fpslabel->setText("fps: 0");
 
-    ui->frameLabel->setMinimumSize(0,0);
-    ui->frameLabel->setSizePolicy(
-        QSizePolicy::Ignored,
-        QSizePolicy::Ignored
-    );
+    fpstimer.start();
+
+    ui->frameLabel->setMinimumSize(0, 0);
+    ui->frameLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
 
     ui->frameLabel->setText("Ожидание подключения...");
     ui->frameLabel->setAlignment(Qt::AlignCenter);
@@ -43,13 +45,12 @@ MainWindow::MainWindow(QWidget* parent)
 
 MainWindow::~MainWindow() { delete ui; }
 
-void MainWindow::resizeEvent(QResizeEvent* event)
-{
+void MainWindow::resizeEvent(QResizeEvent* event) {
     QMainWindow::resizeEvent(event);
 
-    if (!currentPixmap.isNull()) {
+    if(!curpixmap.isNull()){
         ui->frameLabel->setPixmap(
-            currentPixmap.scaled(
+            curpixmap.scaled(
                 ui->frameLabel->size(),
                 Qt::KeepAspectRatio,
                 Qt::SmoothTransformation
@@ -80,10 +81,10 @@ void MainWindow::handleNewConnection() {
                              clientSocket->peerAddress().toString());
 }
 
-void MainWindow::handleReadyRead(){
+void MainWindow::handleReadyRead() {
     receiveBuffer.append(clientSocket->readAll());
 
-    if (receiveBuffer.size()< static_cast<int>(sizeof(quint32))){
+    if (receiveBuffer.size() < static_cast<int>(sizeof(quint32))) {
         return;
     }
 
@@ -92,7 +93,7 @@ void MainWindow::handleReadyRead(){
 
     const int headerSize = sizeof(imageSize);
 
-    if (imageSize > 20*1024*1024) {
+    if (imageSize > 20 * 1024 * 1024) {
         statusBar()->showMessage("Ошибка: размер изображения слишком большой");
         receiveBuffer.clear();
         return;
@@ -104,22 +105,22 @@ void MainWindow::handleReadyRead(){
     const QByteArray imageData = receiveBuffer.mid(headerSize, imageSize);
     receiveBuffer.remove(0, headerSize + imageSize);
 
-    QPixmap pixmap;
-    if (!pixmap.loadFromData(imageData, "JPEG")) {
+    if (!curpixmap.loadFromData(imageData, "JPEG")) {
         statusBar()->showMessage("Ошибка: не удалось загрузить JPEG");
         return;
     }
 
-    currentPixmap = pixmap;
+    ui->frameLabel->setPixmap(curpixmap.scaled(
+        ui->frameLabel->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
 
-    ui->frameLabel->setPixmap(
-        pixmap.scaled(
-            ui->frameLabel->size(),
-            Qt::KeepAspectRatio,
-            Qt::SmoothTransformation
-        )
-    );
+    fps++;
+    const quint64 elapsed = fpstimer.elapsed();
+    if (elapsed >= 1000) {
+        const double fpsvalue = fps * 1000 / static_cast<double>(elapsed);
+        ui->fpslabel->setText(QString("FPS: %1").arg(fpsvalue, 0, 'f', 1));
+        fps = 0;
+        fpstimer.restart();
+    }
 
-    statusBar() -> showMessage(QString("Кадр получен: %1 байт").arg(imageSize));
-
+    statusBar()->showMessage(QString("Кадр получен: %1 байт").arg(imageSize));
 }

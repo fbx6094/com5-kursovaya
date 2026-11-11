@@ -1,5 +1,6 @@
 #pragma once
 #include <QMainWindow>
+#include <QElapsedTimer>
 
 class QLineEdit;
 class QPushButton;
@@ -16,6 +17,8 @@ class ClientWindow : public QMainWindow {
     ~ClientWindow() override;
 
    private:
+    QElapsedTimer fpstimer;
+    int fps;
     QLineEdit* hostEdit;
     QSpinBox* portSpinBox;
     QPushButton* connectButton;
