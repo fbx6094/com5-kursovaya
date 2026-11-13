@@ -12,6 +12,8 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QComboBox>
+#include <QSlider>
 
 ClientWindow::ClientWindow(QWidget* parent)
     : QMainWindow(parent),
@@ -23,15 +25,36 @@ ClientWindow::ClientWindow(QWidget* parent)
       stopButton(new QPushButton("Остановить передачу", this)),
       statusLabel(new QLabel("Не подключён", this)),
       socket(new QTcpSocket(this)),
+      resolutionComboBox(new QComboBox(this)),
+      qualitySlider(new QSlider(Qt::Horizontal, this)),
+      qualitylabel(new QLabel(this)),
       timer(new QTimer(this)) {
     setWindowTitle("Streaming client");
     resize(400, 250);
     portSpinBox->setRange(1, 65535);
     portSpinBox->setValue(5000);
 
+    resolutionComboBox->addItems({
+        "640x480",
+        "800x600",
+        "1024x768",
+        "1280x720",
+        "1920x1080"
+    });
+    resolutionComboBox->setEditable(true);
+    resolutionComboBox->setCurrentText("1280x720");
+
+    qualitySlider->setRange(1,100);
+    qualitySlider->setValue(75);
+
+    updatequalitylabel(qualitySlider->value());
+
     auto* formLayout = new QFormLayout;
     formLayout->addRow("IP сервера:", hostEdit);
     formLayout->addRow("Порт:", portSpinBox);
+    formLayout->addRow("Разрешение = ",resolutionComboBox);
+    formLayout->addRow("Качество JPEG = ",qualitySlider);
+    formLayout->addRow("",qualitylabel);
 
     auto* layout = new QVBoxLayout;
     layout->addLayout(formLayout);
@@ -185,8 +208,7 @@ void ClientWindow::sendFrame() {
     //          << "total:" << frametimer.elapsed() << "ms"
     //          << "size:" << pkg.size() << "bytes";
     if (socket->write(pkg) == -1) {
-        statusLabel->setText("err sending image" +
-                             socket->errorString());
+        statusLabel->setText("err sending image" + socket->errorString());
         stopStreaming();
         return;
     }

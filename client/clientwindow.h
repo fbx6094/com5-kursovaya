@@ -1,6 +1,7 @@
 #pragma once
 #include <QMainWindow>
 #include <QElapsedTimer>
+#include <QSize>
 
 class QLineEdit;
 class QPushButton;
@@ -8,7 +9,9 @@ class QTcpSocket;
 class QTimer;
 class QLabel;
 class QSpinBox;
-
+class QComboBox;
+class QSlider;
+    
 class ClientWindow : public QMainWindow {
     Q_OBJECT
 
@@ -27,6 +30,9 @@ class ClientWindow : public QMainWindow {
     QPushButton* stopButton;
     QLabel* statusLabel;
     QTcpSocket* socket;
+    QComboBox* resolutionComboBox;
+    QSlider* qualitySlider;
+    QLabel* qualitylabel;
     QTimer* timer;
 
    private slots:
@@ -37,4 +43,5 @@ class ClientWindow : public QMainWindow {
     void sendFrame();
     void handleConnected();
     void handleDisconnected();
+    void updatequalitylabel(int value);
 };
