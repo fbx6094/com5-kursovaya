@@ -35,4 +35,5 @@ class MainWindow : public QMainWindow {
     QByteArray receiveBuffer;
     QElapsedTimer fpstimer;
     int fps = 0;
+    quint64 receivedbytes = 0;
 };

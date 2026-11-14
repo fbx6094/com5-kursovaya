@@ -48,14 +48,10 @@ MainWindow::~MainWindow() { delete ui; }
 void MainWindow::resizeEvent(QResizeEvent* event) {
     QMainWindow::resizeEvent(event);
 
-    if(!curpixmap.isNull()){
-        ui->frameLabel->setPixmap(
-            curpixmap.scaled(
-                ui->frameLabel->size(),
-                Qt::KeepAspectRatio,
-                Qt::SmoothTransformation
-            )
-        );
+    if (!curpixmap.isNull()) {
+        ui->frameLabel->setPixmap(curpixmap.scaled(ui->frameLabel->size(),
+                                                   Qt::KeepAspectRatio,
+                                                   Qt::SmoothTransformation));
     }
 }
 
@@ -83,44 +79,53 @@ void MainWindow::handleNewConnection() {
 
 void MainWindow::handleReadyRead() {
     receiveBuffer.append(clientSocket->readAll());
+    const int headerSize = sizeof(quint32);
+    while (true) {
+        if (receiveBuffer.size() < headerSize) {
+            return;
+        }
+        quint32 imageSize = 0;
+        std::memcpy(&imageSize, receiveBuffer.constData(), sizeof(imageSize));
+        if (imageSize == 0 || imageSize > 20 * 1024 * 1024) {
+            statusBar()->showMessage(
+                QString("Ошибка: некорректный размер изображения: %1")
+                    .arg(imageSize));
+            receiveBuffer.clear();
+            return;
+        }
+        const quint64 pkgsize = static_cast<quint64>(headerSize) + imageSize;
 
-    if (receiveBuffer.size() < static_cast<int>(sizeof(quint32))) {
-        return;
+        if (receiveBuffer.size() < pkgsize) {
+            return;
+        }
+
+        const QByteArray imageData = receiveBuffer.mid(headerSize, imageSize);
+        receiveBuffer.remove(0, pkgsize);
+
+        if (!curpixmap.loadFromData(imageData, "JPEG")) {
+            statusBar()->showMessage(
+                "Ошибка: не удалось загрузить изображение");
+            continue;
+        }
+        receivedbytes += imageSize;
+
+        ui->frameLabel->setPixmap(curpixmap.scaled(ui->frameLabel->size(),
+                                                   Qt::KeepAspectRatio,
+                                                   Qt::SmoothTransformation));
+
+        fps++;
+        const quint64 elapsed = fpstimer.elapsed();
+        const double bitrate = receivedbytes * 8 / (elapsed * 1000.0);
+        if (elapsed >= 1000) {
+            const double fpsvalue = fps * 1000.0 / static_cast<double>(elapsed);
+
+            ui->fpslabel->setText(
+                    QString("FPS: %1 | Bitrate: %2 mbit/s").arg(fpsvalue, 0, 'f', 1).arg(bitrate, 0, 'f', 1));
+            fps = 0;
+            fpstimer.restart();
+            receivedbytes = 0;
+        }
+        statusBar()->showMessage(
+            QString("размер кадра: %1 байт").arg(imageSize));
     }
-
-    quint32 imageSize = 0;
-    std::memcpy(&imageSize, receiveBuffer.constData(), sizeof(imageSize));
-
-    const int headerSize = sizeof(imageSize);
-
-    if (imageSize > 20 * 1024 * 1024) {
-        statusBar()->showMessage("Ошибка: размер изображения слишком большой");
-        receiveBuffer.clear();
-        return;
-    }
-
-    if (receiveBuffer.size() < headerSize + static_cast<int>(imageSize)) {
-        return;
-    }
-    const QByteArray imageData = receiveBuffer.mid(headerSize, imageSize);
-    receiveBuffer.remove(0, headerSize + imageSize);
-
-    if (!curpixmap.loadFromData(imageData, "JPEG")) {
-        statusBar()->showMessage("Ошибка: не удалось загрузить JPEG");
-        return;
-    }
-
-    ui->frameLabel->setPixmap(curpixmap.scaled(
-        ui->frameLabel->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-
-    fps++;
-    const quint64 elapsed = fpstimer.elapsed();
-    if (elapsed >= 1000) {
-        const double fpsvalue = fps * 1000 / static_cast<double>(elapsed);
-        ui->fpslabel->setText(QString("FPS: %1").arg(fpsvalue, 0, 'f', 1));
-        fps = 0;
-        fpstimer.restart();
-    }
-
-    statusBar()->showMessage(QString("Кадр получен: %1 байт").arg(imageSize));
 }
