@@ -1,19 +1,19 @@
 #include "clientwindow.h"
 
 #include <QBuffer>
+#include <QComboBox>
 #include <QFormLayout>
 #include <QImage>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QScreen>
+#include <QSlider>
 #include <QSpinBox>
 #include <QTcpSocket>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
-#include <QComboBox>
-#include <QSlider>
 
 ClientWindow::ClientWindow(QWidget* parent)
     : QMainWindow(parent),
@@ -34,17 +34,12 @@ ClientWindow::ClientWindow(QWidget* parent)
     portSpinBox->setRange(1, 65535);
     portSpinBox->setValue(5000);
 
-    resolutionComboBox->addItems({
-        "640x480",
-        "800x600",
-        "1024x768",
-        "1280x720",
-        "1920x1080"
-    });
+    resolutionComboBox->addItems(
+        {"640x480", "800x600", "1024x768", "1280x720", "1920x1080"});
     resolutionComboBox->setEditable(true);
     resolutionComboBox->setCurrentText("1280x720");
 
-    qualitySlider->setRange(1,100);
+    qualitySlider->setRange(1, 100);
     qualitySlider->setValue(75);
 
     updatequalitylabel(qualitySlider->value());
@@ -52,9 +47,9 @@ ClientWindow::ClientWindow(QWidget* parent)
     auto* formLayout = new QFormLayout;
     formLayout->addRow("IP сервера:", hostEdit);
     formLayout->addRow("Порт:", portSpinBox);
-    formLayout->addRow("Разрешение = ",resolutionComboBox);
-    formLayout->addRow("Качество JPEG = ",qualitySlider);
-    formLayout->addRow("",qualitylabel);
+    formLayout->addRow("Разрешение = ", resolutionComboBox);
+    formLayout->addRow("Качество JPEG = ", qualitySlider);
+    formLayout->addRow("", qualitylabel);
 
     auto* layout = new QVBoxLayout;
     layout->addLayout(formLayout);
@@ -88,6 +83,8 @@ ClientWindow::ClientWindow(QWidget* parent)
             &ClientWindow::handleConnected);
     connect(socket, &QTcpSocket::disconnected, this,
             &ClientWindow::handleDisconnected);
+    connect(qualitySlider, &QSlider::valueChanged, this,
+            &ClientWindow::updatequalitylabel);
 }
 
 ClientWindow::~ClientWindow() = default;
@@ -111,6 +108,10 @@ void ClientWindow::disconnectFromServer() {
     }
 }
 
+void ClientWindow::updatequalitylabel(int value) {
+    qualitylabel->setText(QString("Качество JPEG = %1").arg(value));
+}
+
 void ClientWindow::handleConnected() {
     connectButton->setEnabled(false);
     disconnectButton->setEnabled(true);
@@ -120,6 +121,8 @@ void ClientWindow::handleConnected() {
 
     statusLabel->setText("Подключён к серверу: " +
                          socket->peerAddress().toString());
+
+    startStreaming();
 }
 
 void ClientWindow::handleDisconnected() {
@@ -175,38 +178,42 @@ void ClientWindow::sendFrame() {
         return;
     }
 
-    QElapsedTimer stageTimer;
-
-    stageTimer.start();
     const QImage image = screen->grabWindow(0).toImage();
-    const qint64 captureTime = stageTimer.elapsed();
 
-    stageTimer.restart();
-    const QImage scaledImage =
-        image.scaled(1280, 720, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-    const qint64 scaleTime = stageTimer.elapsed();
+    const QString resolutionText = resolutionComboBox->currentText();
+    const QStringList parts = resolutionText.split('x');
+    if (parts.size() != 2) {
+        statusLabel->setText("Неверное разрешение: " + resolutionText);
+        stopStreaming();
+        return;
+    }
+    bool widthok = false;
+    bool heightok = false;
+    const int width = parts[0].toInt(&widthok);
+    const int height = parts[1].toInt(&heightok);
+    if (!widthok || !heightok || width <= 0 || height <= 0) {
+        statusLabel->setText("Неверное разрешение: ");
+        stopStreaming();
+        return;
+    }
+
+    const QImage scaledImage = image.scaled(width, height, Qt::KeepAspectRatio,
+                                            Qt::SmoothTransformation);
 
     QByteArray imagedata;
     QBuffer buffer(&imagedata);
 
-    stageTimer.restart();
     if (!buffer.open(QIODevice::WriteOnly) ||
-        !scaledImage.save(&buffer, "JPEG", 75)) {
+        !scaledImage.save(&buffer, "JPEG", qualitySlider->value())) {
         statusLabel->setText("err saving image");
         stopStreaming();
         return;
     }
-    const qint64 encodeTime = stageTimer.elapsed();
 
     const quint32 imageSize = imagedata.size();
     QByteArray pkg;
     pkg.append(reinterpret_cast<const char*>(&imageSize), sizeof(imageSize));
     pkg.append(imagedata);
-    // qDebug() << "capture:" << captureTime << "ms"
-    //          << "scale:" << scaleTime << "ms"
-    //          << "jpeg:" << encodeTime << "ms"
-    //          << "total:" << frametimer.elapsed() << "ms"
-    //          << "size:" << pkg.size() << "bytes";
     if (socket->write(pkg) == -1) {
         statusLabel->setText("err sending image" + socket->errorString());
         stopStreaming();
