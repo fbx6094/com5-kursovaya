@@ -1,17 +1,21 @@
 #include "clientwindow.h"
 
+#include <QAbstractSocket>
 #include <QBuffer>
 #include <QComboBox>
 #include <QFormLayout>
+#include <QHostAddress>
 #include <QImage>
 #include <QLabel>
 #include <QLineEdit>
+#include <QNetworkDatagram>
 #include <QPushButton>
 #include <QScreen>
 #include <QSlider>
 #include <QSpinBox>
 #include <QTcpSocket>
 #include <QTimer>
+#include <QUdpSocket>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -28,11 +32,18 @@ ClientWindow::ClientWindow(QWidget* parent)
       resolutionComboBox(new QComboBox(this)),
       qualitySlider(new QSlider(Qt::Horizontal, this)),
       qualitylabel(new QLabel(this)),
+      findserverbtn(new QPushButton("Найти серверы", this)),
+      discoverysocket(new QUdpSocket(this)),
+      serverlist(new QComboBox(this)),
       timer(new QTimer(this)) {
     setWindowTitle("Streaming client");
     resize(400, 250);
     portSpinBox->setRange(1, 65535);
     portSpinBox->setValue(5000);
+
+    discoverysocket->bind(
+        QHostAddress::AnyIPv4, 0,
+        QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint);
 
     resolutionComboBox->addItems(
         {"640x480", "800x600", "1024x768", "1280x720", "1920x1080"});
@@ -50,6 +61,8 @@ ClientWindow::ClientWindow(QWidget* parent)
     formLayout->addRow("Разрешение = ", resolutionComboBox);
     formLayout->addRow("Качество JPEG = ", qualitySlider);
     formLayout->addRow("", qualitylabel);
+    formLayout->addRow("Серверы:", serverlist);
+    formLayout->addRow("", findserverbtn);
 
     auto* layout = new QVBoxLayout;
     layout->addLayout(formLayout);
@@ -85,6 +98,12 @@ ClientWindow::ClientWindow(QWidget* parent)
             &ClientWindow::handleDisconnected);
     connect(qualitySlider, &QSlider::valueChanged, this,
             &ClientWindow::updatequalitylabel);
+    connect(findserverbtn, &QPushButton::clicked, this,
+            &ClientWindow::findservers);
+    connect(discoverysocket, &QUdpSocket::readyRead, this,
+            &ClientWindow::handlediscovery);
+    connect(serverlist, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &ClientWindow::selectserver);
 }
 
 ClientWindow::~ClientWindow() = default;
@@ -231,4 +250,79 @@ void ClientWindow::sendFrame() {
         fps = 0;
         fpstimer.restart();
     }
+}
+
+void ClientWindow::findservers() {
+    serverlist->clear();
+
+    const QByteArray request = "DISCOVER_SCREEN_SERVER";
+
+    if (discoverysocket->writeDatagram(request, QHostAddress::Broadcast, 5001) ==
+        -1) {
+        statusLabel->setText("Ошибка поиска серверов: " +
+                             discoverysocket->errorString());
+        return;
+    }
+
+    statusLabel->setText("Поиск серверов...");
+}
+
+void ClientWindow::handlediscovery() {
+    while (discoverysocket->hasPendingDatagrams()) {
+        const QNetworkDatagram datagram = discoverysocket->receiveDatagram();
+
+        if (datagram.data() != "DISCOVER_SCREEN_SERVER") {
+            const QString response = QString::fromUtf8(datagram.data());
+
+            const QStringList parts = response.split('|');
+            if (parts.size() == 2) {
+                bool portok = false;
+                const int port = parts[1].toInt(&portok);
+
+                if (portok) {
+                    const QHostAddress senderaddress = datagram.senderAddress();
+                    QString host;
+                    if (senderaddress.protocol() ==
+                        QAbstractSocket::IPv4Protocol) {
+                        host = senderaddress.toString();
+                    } else if (senderaddress.toIPv4Address() != 0) {
+                        host = QHostAddress(senderaddress.toIPv4Address())
+                                   .toString();
+                    } else {
+                        host = senderaddress.toString();
+                    }
+                    const QString servername =
+                        host + ":" + QString::number(port);
+
+                    int index = serverlist->findText(servername);
+
+                    if (index == -1) {
+                        serverlist->addItem(servername);
+                        index = serverlist->count() - 1;
+                    }
+                    serverlist->setItemData(index, host, Qt::UserRole);
+                    serverlist->setItemData(index, port, Qt::UserRole + 1);
+                    selectserver(index);
+
+                    statusLabel->setText("Найден сервер: " + servername);
+                }
+            }
+        }
+    }
+}
+
+void ClientWindow::selectserver(int index) {
+    if (index < 0) {
+        return;
+    }
+
+    const QString host = serverlist->itemData(index, Qt::UserRole).toString();
+    const int port = serverlist->itemData(index, Qt::UserRole + 1).toInt();
+    if (host.isEmpty() || port <= 0) {
+        return;
+    }
+    hostEdit->setText(host);
+    portSpinBox->setValue(port);
+
+    statusLabel->setText(QString("Выбран сервер: %1:%2").arg(host).arg(port));
 }

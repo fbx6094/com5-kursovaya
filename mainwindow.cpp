@@ -1,10 +1,12 @@
 #include "mainwindow.h"
 
 #include <QHostAddress>
+#include <QNetworkDatagram>
 #include <QPixmap>
 #include <QSizePolicy>
 #include <QTcpServer>
 #include <QTcpSocket>
+#include <QUdpSocket>
 #include <QVBoxLayout>
 #include <cstring>
 
@@ -14,6 +16,7 @@ MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent),
       ui(new Ui::MainWindow),
       server(new QTcpServer(this)),
+      discoverysocket(new QUdpSocket(this)),
       clientSocket(nullptr) {
     ui->setupUi(this);
     ui->fpslabel->setText("fps: 0");
@@ -34,10 +37,19 @@ MainWindow::MainWindow(QWidget* parent)
     connect(server, &QTcpServer::newConnection, this,
             &MainWindow::handleNewConnection);
 
+    connect(discoverysocket, &QUdpSocket::readyRead, this,
+            &MainWindow::handlediscovery);
+
     if (!server->listen(QHostAddress::AnyIPv4, 5000)) {
         ui->frameLabel->setText("Ошибка запуска сервера:\n" +
                                 server->errorString());
         return;
+    }
+    if (!discoverysocket->bind(
+            QHostAddress::AnyIPv4, 5001,
+            QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint)) {
+        statusBar()->showMessage("ошибка запуска автопоиска" +
+                                 discoverysocket->errorString());
     }
 
     statusBar()->showMessage("Сервер запущен на порту 5000");
@@ -119,13 +131,29 @@ void MainWindow::handleReadyRead() {
         if (elapsed >= 1000) {
             const double fpsvalue = fps * 1000.0 / static_cast<double>(elapsed);
 
-            ui->fpslabel->setText(
-                    QString("FPS: %1 | Bitrate: %2 mbit/s").arg(fpsvalue, 0, 'f', 1).arg(bitrate, 0, 'f', 1));
+            ui->fpslabel->setText(QString("FPS: %1 | Bitrate: %2 mbit/s")
+                                      .arg(fpsvalue, 0, 'f', 1)
+                                      .arg(bitrate, 0, 'f', 1));
             fps = 0;
             fpstimer.restart();
             receivedbytes = 0;
         }
-        statusBar()->showMessage(
-            QString("размер кадра: %1 байт").arg(imageSize));
+        // statusBar()->showMessage(
+        //     QString("размер кадра: %1 байт").arg(imageSize));
+    }
+}
+
+void MainWindow::handlediscovery() {
+    while (discoverysocket->hasPendingDatagrams()) {
+        QNetworkDatagram datagram = discoverysocket->receiveDatagram();
+
+        if (datagram.data() != "DISCOVER_SCREEN_SERVER") {
+            continue;
+        }
+
+        const QByteArray responce = "Screen_Server|5000";
+
+        discoverysocket->writeDatagram(responce, datagram.senderAddress(),
+                                       datagram.senderPort());
     }
 }

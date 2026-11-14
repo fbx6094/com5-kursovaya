@@ -1,11 +1,12 @@
 #pragma once
 #include <QByteArray>
+#include <QElapsedTimer>
 #include <QMainWindow>
 #include <QPixmap>
-#include <QElapsedTimer>
 
 class QTcpServer;
 class QTcpSocket;
+class QUdpSocket;
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -23,6 +24,7 @@ class MainWindow : public QMainWindow {
    private slots:
     void handleNewConnection();
     void handleReadyRead();
+    void handlediscovery();
 
    protected:
     void resizeEvent(QResizeEvent* event) override;
@@ -36,4 +38,5 @@ class MainWindow : public QMainWindow {
     QElapsedTimer fpstimer;
     int fps = 0;
     quint64 receivedbytes = 0;
+    QUdpSocket* discoverysocket;
 };

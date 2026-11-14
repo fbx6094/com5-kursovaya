@@ -11,7 +11,8 @@ class QLabel;
 class QSpinBox;
 class QComboBox;
 class QSlider;
-    
+class QUdpSocket;
+
 class ClientWindow : public QMainWindow {
     Q_OBJECT
 
@@ -34,6 +35,9 @@ class ClientWindow : public QMainWindow {
     QSlider* qualitySlider;
     QLabel* qualitylabel;
     QTimer* timer;
+    QPushButton* findserverbtn;
+    QUdpSocket* discoverysocket;
+    QComboBox* serverlist;
 
    private slots:
     void connectToServer();
@@ -44,4 +48,7 @@ class ClientWindow : public QMainWindow {
     void handleConnected();
     void handleDisconnected();
     void updatequalitylabel(int value);
+    void findservers();
+    void handlediscovery();
+    void selectserver(int index);
 };
