@@ -6,7 +6,6 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Network)
 
 qt_standard_project_setup()
 
-
 qt_add_executable(untitled_server
     server/main.cpp
     mainwindow.cpp
@@ -17,27 +16,33 @@ qt_add_executable(untitled_server
 
 target_link_libraries(untitled_server
     PRIVATE
-        Qt::Core
-        Qt::Gui
-        Qt::Widgets
-        Qt::Network
+    Qt::Core
+    Qt::Gui
+    Qt::Widgets
+    Qt::Network
 )
 
 target_include_directories(untitled_server
     PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 qt_add_executable(untitled_client
     client/main.cpp
     client/clientwindow.cpp
     client/clientwindow.h
+    common/protocol.h
 )
 
 target_link_libraries(untitled_client
     PRIVATE
-        Qt::Core
-        Qt::Gui
-        Qt::Network
-        Qt::Widgets
+    Qt::Core
+    Qt::Gui
+    Qt::Network
+    Qt::Widgets
+)
+
+target_include_directories(untitled_client
+    PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )

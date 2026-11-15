@@ -2,24 +2,14 @@
 #include <QtGlobal>
 
 namespace Protocol {
-constexpr quint32 Magic = 0x53534352;
-constexpr quint16 Version = 1;
-constexpr quint16 HeaderSize = 36;
+constexpr quint16 tcpPort = 5000;
+constexpr quint16 udpPort = 5001;
 
-#pragma pack(push, 1)
-struct FrameHeader {
-    quint32 magic;
-    quint16 version;
-    quint16 headerSize;
-    quint32 frameSize;
-    quint64 frameNumber;
-    quint64 timestamp;
-    quint16 width;
-    quint16 height;
-    quint8 format;
-    quint8 reserved[3];
-};
-#pragma pack(pop)
-constexpr quint8 FormatJpeg = 1;
-constexpr quint8 FormatPng = 2;
+inline constexpr char discoveryRequest[] = "DISCOVER_SCREEN_SERVER";
+inline constexpr char discoveryResponce[] = "Screen_server";
+
+constexpr quint32 maxframeSize = 20 * 1024 * 1024;
+constexpr quint64 maxQueueBytes = 350000;
+
+using packetHeader = quint32;
 } 

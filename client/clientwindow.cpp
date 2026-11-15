@@ -1,5 +1,5 @@
 #include "clientwindow.h"
-
+#include "common/protocol.h"
 #include <QAbstractSocket>
 #include <QBuffer>
 #include <QComboBox>
@@ -18,6 +18,7 @@
 #include <QUdpSocket>
 #include <QVBoxLayout>
 #include <QWidget>
+
 
 ClientWindow::ClientWindow(QWidget* parent)
     : QMainWindow(parent),
@@ -39,7 +40,7 @@ ClientWindow::ClientWindow(QWidget* parent)
     setWindowTitle("Streaming client");
     resize(400, 250);
     portSpinBox->setRange(1, 65535);
-    portSpinBox->setValue(5000);
+    portSpinBox->setValue(Protocol::tcpPort);
 
     discoverysocket->bind(
         QHostAddress::AnyIPv4, 0,
@@ -175,17 +176,12 @@ void ClientWindow::stopStreaming() {
 }
 
 void ClientWindow::sendFrame() {
-    QElapsedTimer frametimer;
-    frametimer.start();
     if (socket->state() != QAbstractSocket::ConnectedState) {
         stopStreaming();
         return;
     }
 
-    // Один кадр сейчас обычно занимает около 160 КБ.
-    // Не даём TCP-очереди накапливать больше примерно двух кадров.
-    constexpr qint64 maxQueuedBytes = 350000;
-    if (socket->bytesToWrite() > maxQueuedBytes) {
+    if (socket->bytesToWrite() > Protocol::maxQueueBytes) {
         return;
     }
 
@@ -211,7 +207,7 @@ void ClientWindow::sendFrame() {
     const int width = parts[0].toInt(&widthok);
     const int height = parts[1].toInt(&heightok);
     if (!widthok || !heightok || width <= 0 || height <= 0) {
-        statusLabel->setText("Неверное разрешение: ");
+        statusLabel->setText("Неверное разрешение: " + resolutionText);
         stopStreaming();
         return;
     }
@@ -229,7 +225,7 @@ void ClientWindow::sendFrame() {
         return;
     }
 
-    const quint32 imageSize = imagedata.size();
+    const Protocol::packetHeader imageSize = imagedata.size();
     QByteArray pkg;
     pkg.append(reinterpret_cast<const char*>(&imageSize), sizeof(imageSize));
     pkg.append(imagedata);
@@ -255,10 +251,10 @@ void ClientWindow::sendFrame() {
 void ClientWindow::findservers() {
     serverlist->clear();
 
-    const QByteArray request = "DISCOVER_SCREEN_SERVER";
+    const QByteArray request = Protocol::discoveryRequest;
 
-    if (discoverysocket->writeDatagram(request, QHostAddress::Broadcast, 5001) ==
-        -1) {
+    if (discoverysocket->writeDatagram(request, QHostAddress::Broadcast,
+                                       Protocol::udpPort) == -1) {
         statusLabel->setText("Ошибка поиска серверов: " +
                              discoverysocket->errorString());
         return;
@@ -271,7 +267,7 @@ void ClientWindow::handlediscovery() {
     while (discoverysocket->hasPendingDatagrams()) {
         const QNetworkDatagram datagram = discoverysocket->receiveDatagram();
 
-        if (datagram.data() != "DISCOVER_SCREEN_SERVER") {
+        if (datagram.data() != Protocol::discoveryRequest) {
             const QString response = QString::fromUtf8(datagram.data());
 
             const QStringList parts = response.split('|');

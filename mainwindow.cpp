@@ -1,5 +1,5 @@
 #include "mainwindow.h"
-
+#include "common/protocol.h"
 #include <QHostAddress>
 #include <QNetworkDatagram>
 #include <QPixmap>
@@ -8,7 +8,6 @@
 #include <QTcpSocket>
 #include <QUdpSocket>
 #include <QVBoxLayout>
-#include <cstring>
 
 #include "ui_mainwindow.h"
 
@@ -40,19 +39,19 @@ MainWindow::MainWindow(QWidget* parent)
     connect(discoverysocket, &QUdpSocket::readyRead, this,
             &MainWindow::handlediscovery);
 
-    if (!server->listen(QHostAddress::AnyIPv4, 5000)) {
+    if (!server->listen(QHostAddress::AnyIPv4, Protocol::tcpPort)) {
         ui->frameLabel->setText("Ошибка запуска сервера:\n" +
                                 server->errorString());
         return;
     }
     if (!discoverysocket->bind(
-            QHostAddress::AnyIPv4, 5001,
+            QHostAddress::AnyIPv4, Protocol::udpPort,
             QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint)) {
         statusBar()->showMessage("ошибка запуска автопоиска" +
                                  discoverysocket->errorString());
     }
 
-    statusBar()->showMessage("Сервер запущен на порту 5000");
+    statusBar()->showMessage("Сервер запущен на порту " + QString::number(Protocol::tcpPort));
 }
 
 MainWindow::~MainWindow() { delete ui; }
@@ -91,14 +90,14 @@ void MainWindow::handleNewConnection() {
 
 void MainWindow::handleReadyRead() {
     receiveBuffer.append(clientSocket->readAll());
-    const int headerSize = sizeof(quint32);
+    const int headerSize = sizeof(Protocol::packetHeader);
     while (true) {
         if (receiveBuffer.size() < headerSize) {
             return;
         }
-        quint32 imageSize = 0;
+        Protocol::packetHeader imageSize = 0;
         std::memcpy(&imageSize, receiveBuffer.constData(), sizeof(imageSize));
-        if (imageSize == 0 || imageSize > 20 * 1024 * 1024) {
+        if (imageSize == 0 || imageSize > Protocol::maxframeSize) {
             statusBar()->showMessage(
                 QString("Ошибка: некорректный размер изображения: %1")
                     .arg(imageSize));
@@ -138,8 +137,6 @@ void MainWindow::handleReadyRead() {
             fpstimer.restart();
             receivedbytes = 0;
         }
-        // statusBar()->showMessage(
-        //     QString("размер кадра: %1 байт").arg(imageSize));
     }
 }
 
@@ -147,11 +144,11 @@ void MainWindow::handlediscovery() {
     while (discoverysocket->hasPendingDatagrams()) {
         QNetworkDatagram datagram = discoverysocket->receiveDatagram();
 
-        if (datagram.data() != "DISCOVER_SCREEN_SERVER") {
+        if (datagram.data() != Protocol::discoveryRequest) {
             continue;
         }
 
-        const QByteArray responce = "Screen_Server|5000";
+        const QByteArray responce = QByteArray(Protocol::discoveryResponce) + "|" + QByteArray::number(Protocol::tcpPort);
 
         discoverysocket->writeDatagram(responce, datagram.senderAddress(),
                                        datagram.senderPort());
